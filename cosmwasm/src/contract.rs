@@ -1,14 +1,33 @@
-use crate::error::ContractError;
-use crate::execute::{fulfill_offer, make_offer, provide_taker};
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::query::{query_all_offers, query_fulfilled_offers};
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 };
+use cw_storage_plus::Map;
+use cosmwasm_schema::{cw_serde, QueryResponses};\
 
-#[cfg_attr(not(feature = "library"), entry_point)]
+/// CosmWasm Contract State Definition 
+pub const USER_COUNT: Map<String, u64> = Map::new("count");
+
+/// CosmWasm Contract Messages
+#[cw_serde]
+pub struct InstantiateMsg {}
+
+#[cw_serde]
+pub enum ExecuteMsg {
+    Increment,
+    Decrement,
+}
+
+#[cw_serde]
+#[derive(QueryResponses)]
+pub enum QueryMsg {
+    #[returns(u64)]
+    GetUserCount { user: String },
+}
+
+/// CosmWasm Contract Entry Points
+#[entry_point]
 pub fn instantiate(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
     _msg: InstantiateMsg,
@@ -16,26 +35,39 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
+#[entry_point]
 pub fn execute(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, ContractError> {
+) -> StdResult<Response> {
     match msg {
-        ExecuteMsg::IncrementCounter { } => increment_counter(deps, env, info),
-        ExecuteMsg::DecrementCounter { } => decrement_counter(deps, env, info),
-        ExecuteMsg::ResetCounter { count: u64 } => reset_counter(deps, env, info, count),
+        ExecuteMsg::Increment => {
+            USER_COUNT.update(deps.storage, &info.sender.to_string(), count {
+                Ok(count.unwrap_or_default() + 1)
+            })?;
+            Ok(Response::new().add_attribute("execute", "increment"))
+        },
+        ExecuteMsg::Decrement => {
+            USER_COUNT.update(deps.storage, &info.sender.to_string(), count {
+                let mut count = count.unwrap_or_default();
+                if count > 0 {
+                    count -= 1;
+                }
+                Ok(count)
+            })?;
+            Ok(Response::new().add_attribute("execute", "decrement"))
+        },
     }
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, StdError> {
-    pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-        match msg {
-            QueryMsg::GetCount {} => to_binary(&query_count(deps)?),
-        }
-    }
+#[entry_point]
+pub fn query(
+    deps: Deps,
+    _env: Env,
+    info: QueryMsg,
+) -> StdResult<Binary> {
+    let count = USER_COUNT.may_load(deps.storage, &info.user)?.unwrap_or_default();
+    Ok(to_binary(&count)?)
 }
-
